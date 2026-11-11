@@ -129,8 +129,8 @@ type TopBuyer = {
   email: string;
   spendCents: number;
   purchaseCount: number;
-  seatsBought: number;
-  seatsUnredeemed: number;
+  licensesBought: number;
+  licensesUnredeemed: number;
   enrolled: boolean;
 };
 
@@ -249,8 +249,8 @@ function getStudentRevenue(
 
   const studentIds = students.map((student) => student.userId);
 
-  // Correlated: did this purchase mint seats for other people?
-  const mintedSeats = db
+  // Correlated: did this purchase mint licenses for other people?
+  const mintedLicenses = db
     .select({ one: sql`1` })
     .from(coupons)
     .where(eq(coupons.purchaseId, purchases.id));
@@ -262,30 +262,30 @@ function getStudentRevenue(
     .where(
       and(
         inArray(purchases.userId, studentIds),
-        notExists(mintedSeats),
+        notExists(mintedLicenses),
         ownedBy(instructorId)
       )
     )
     .groupBy(purchases.userId)
     .all();
 
-  const seatCounts = db
-    .select({ purchaseId: coupons.purchaseId, seats: count().as("seats") })
+  const licenseCounts = db
+    .select({ purchaseId: coupons.purchaseId, licenses: count().as("licenses") })
     .from(coupons)
     .groupBy(coupons.purchaseId)
-    .as("seat_counts");
+    .as("license_counts");
 
-  const viaSeat = db
+  const viaLicense = db
     .select({
       userId: coupons.redeemedByUserId,
       // Divided rather than rounded per row: the shares are summed first and
-      // rounded once, so five seats out of 3333 cents still add up.
-      paid: sql<number>`sum(${purchases.amountPaid} * 1.0 / ${seatCounts.seats})`,
+      // rounded once, so five licenses out of 3333 cents still add up.
+      paid: sql<number>`sum(${purchases.amountPaid} * 1.0 / ${licenseCounts.licenses})`,
     })
     .from(coupons)
     .innerJoin(purchases, eq(coupons.purchaseId, purchases.id))
     .innerJoin(courses, eq(purchases.courseId, courses.id))
-    .innerJoin(seatCounts, eq(seatCounts.purchaseId, coupons.purchaseId))
+    .innerJoin(licenseCounts, eq(licenseCounts.purchaseId, coupons.purchaseId))
     .where(
       and(inArray(coupons.redeemedByUserId, studentIds), ownedBy(instructorId))
     )
@@ -299,7 +299,7 @@ function getStudentRevenue(
   };
 
   for (const row of direct) credit(row.userId, row.paid);
-  for (const row of viaSeat) credit(row.userId, row.paid);
+  for (const row of viaLicense) credit(row.userId, row.paid);
 
   return students.map((student) => ({
     ...student,
@@ -334,10 +334,10 @@ function getTopBuyers(
 
   const buyerIds = buyers.map((buyer) => buyer.userId);
 
-  // Seats are counted in their own query: joining coupons to purchases above
-  // would repeat each purchase once per seat and multiply the spend the
+  // Licenses are counted in their own query: joining coupons to purchases above
+  // would repeat each purchase once per license and multiply the spend the
   // leaderboard ranks on.
-  const seats = db
+  const licenses = db
     .select({
       userId: purchases.userId,
       bought: count(coupons.id),
@@ -355,7 +355,7 @@ function getTopBuyers(
     .groupBy(purchases.userId)
     .all();
 
-  const seatsByUser = new Map(seats.map((row) => [row.userId, row]));
+  const licensesByUser = new Map(licenses.map((row) => [row.userId, row]));
 
   // No range here: "never enrolled" is a fact about the person, not about the
   // last thirty days.
@@ -375,8 +375,8 @@ function getTopBuyers(
     email: buyer.email,
     spendCents: Number(buyer.spend ?? 0),
     purchaseCount: buyer.purchaseCount,
-    seatsBought: seatsByUser.get(buyer.userId)?.bought ?? 0,
-    seatsUnredeemed: Number(seatsByUser.get(buyer.userId)?.unredeemed ?? 0),
+    licensesBought: licensesByUser.get(buyer.userId)?.bought ?? 0,
+    licensesUnredeemed: Number(licensesByUser.get(buyer.userId)?.unredeemed ?? 0),
     enrolled: enrolled.has(buyer.userId),
   }));
 }
@@ -927,8 +927,8 @@ export async function loader({ request, url }: Route.LoaderArgs) {
     .sort((a, b) => b.grossCents - a.grossCents);
 
   // How many people paid, and how many are learning. Deliberately two numbers:
-  // one team purchase is a single buyer covering several seats, and someone who
-  // redeems a seat enrols without a purchase row of their own.
+  // one team purchase is a single buyer covering several licenses, and someone who
+  // redeems a license enrols without a purchase row of their own.
   const buyerCountRow = db
     .select({ buyerCount: countDistinct(purchases.userId) })
     .from(purchases)
@@ -1112,7 +1112,7 @@ function TopBuyers({
       <thead>
         <tr className="border-b text-left text-muted-foreground">
           <th className="pb-2 font-medium">Buyer</th>
-          <th className="pb-2 font-medium">Seats</th>
+          <th className="pb-2 font-medium">Licenses</th>
           <th className="pb-2 text-right font-medium">Purchases</th>
           <th className="pb-2 text-right font-medium">Total spend</th>
         </tr>
@@ -1125,18 +1125,18 @@ function TopBuyers({
               <div className="text-xs text-muted-foreground">{buyer.email}</div>
             </td>
             <td className="py-3">
-              {buyer.seatsBought > 0 && (
+              {buyer.licensesBought > 0 && (
                 <div>
                   <span className="rounded bg-secondary px-1.5 py-0.5 text-xs font-medium">
                     Team
                   </span>{" "}
                   <span className="text-xs text-muted-foreground">
-                    bought {buyer.seatsBought},{" "}
-                    {buyer.seatsUnredeemed > 0 ? (
-                      // The prompt to chase: seats paid for that nobody is
+                    bought {buyer.licensesBought},{" "}
+                    {buyer.licensesUnredeemed > 0 ? (
+                      // The prompt to chase: licenses paid for that nobody is
                       // using are the most actionable thing on this table.
                       <span className="font-medium text-foreground">
-                        {buyer.seatsUnredeemed} unused
+                        {buyer.licensesUnredeemed} unused
                       </span>
                     ) : (
                       "all claimed"
@@ -1145,7 +1145,7 @@ function TopBuyers({
                 </div>
               )}
               {/* Said of team buyers too, not just solo ones: the manager who
-                  bought a dozen seats and never opened the course is the very
+                  bought a dozen licenses and never opened the course is the very
                   person this table exists to surface. */}
               <div className="text-xs text-muted-foreground">
                 {buyer.enrolled ? "Enrolled" : "Never enrolled"}
@@ -1656,13 +1656,13 @@ export default function InstructorAnalytics({
               <StatCard
                 label="Buyers"
                 value={audience.buyerCount}
-                hint="People who paid. A team buying several seats counts once."
+                hint="People who paid. A team buying several licenses counts once."
                 emptyHint="Nobody has bought in this period."
               />
               <StatCard
                 label="Enrolled students"
                 value={audience.studentCount}
-                hint={`Learners with access, seats included.${
+                hint={`Learners with access, licenses included.${
                   audience.revenuePerStudentCents === null
                     ? ""
                     : ` ${formatMoney(
@@ -1809,7 +1809,7 @@ export default function InstructorAnalytics({
 
             {/* Both panels sit outside the enrolment gate above: a quiz with
                 nobody enrolled to sit it, and money arriving before anybody
-                claims their seat, are things an instructor should still be
+                claims their license, are things an instructor should still be
                 told about rather than shown one "nobody is enrolled" card in
                 place of. */}
             {quizzes && (

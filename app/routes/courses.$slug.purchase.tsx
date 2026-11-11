@@ -219,7 +219,7 @@ function getOrCreateTeamForUser(userId: number) {
   return team;
 }
 
-function generateCoupons(
+function generateLicenses(
   teamId: number,
   courseId: number,
   purchaseId: number,
@@ -227,7 +227,7 @@ function generateCoupons(
 ) {
   const created: (typeof coupons.$inferSelect)[] = [];
   for (let i = 0; i < quantity; i++) {
-    const coupon = db
+    const license = db
       .insert(coupons)
       .values({
         teamId,
@@ -237,7 +237,7 @@ function generateCoupons(
       })
       .returning()
       .get();
-    created.push(coupon);
+    created.push(license);
   }
   return created;
 }
@@ -251,8 +251,8 @@ function createTeamPurchase(
 ) {
   const purchase = createPurchase(userId, courseId, amountPaid, country);
   const team = getOrCreateTeamForUser(userId);
-  const teamCoupons = generateCoupons(team.id, courseId, purchase.id, quantity);
-  return { purchase, team, coupons: teamCoupons };
+  const teamLicenses = generateLicenses(team.id, courseId, purchase.id, quantity);
+  return { purchase, team, licenses: teamLicenses };
 }
 
 const purchaseParamsSchema = z.object({
@@ -551,7 +551,7 @@ export default function PurchaseConfirmation({
                   <div className="space-y-6">
                     {/* Quantity selector */}
                     <div className="flex items-center gap-4">
-                      <span className="text-sm font-medium">Seats</span>
+                      <span className="text-sm font-medium">Licenses</span>
                       <div className="flex items-center gap-2">
                         <Button
                           variant="outline"
@@ -580,7 +580,7 @@ export default function PurchaseConfirmation({
                     <div>
                       <div className="text-sm text-muted-foreground">
                         {formatPrice(pppPrice)} &times; {quantity}{" "}
-                        {quantity === 1 ? "seat" : "seats"}
+                        {quantity === 1 ? "license" : "licenses"}
                       </div>
                       <div className="text-3xl font-bold">
                         {formatPrice(teamTotal)}
@@ -588,7 +588,7 @@ export default function PurchaseConfirmation({
                     </div>
 
                     <p className="text-sm text-muted-foreground">
-                      You&apos;ll receive {quantity} unique coupon{" "}
+                      You&apos;ll receive {quantity} unique license{" "}
                       {quantity === 1 ? "link" : "links"} to share with your
                       team members. Each link grants one person access to this
                       course.
@@ -608,7 +608,7 @@ export default function PurchaseConfirmation({
                         <Button size="lg" disabled={isSubmitting}>
                           {isSubmitting
                             ? "Processing..."
-                            : `Buy ${quantity} ${quantity === 1 ? "Seat" : "Seats"}`}
+                            : `Buy ${quantity} ${quantity === 1 ? "License" : "Licenses"}`}
                         </Button>
                       </fetcher.Form>
                     </div>
