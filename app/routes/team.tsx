@@ -34,7 +34,7 @@ function getTeamForAdmin(userId: number) {
   return db.select().from(teams).where(eq(teams.id, membership.teamId)).get();
 }
 
-function getCouponsForTeam(teamId: number) {
+function getLicensesForTeam(teamId: number) {
   return db.select().from(coupons).where(eq(coupons.teamId, teamId)).all();
 }
 
@@ -50,11 +50,11 @@ interface CourseStats {
   courseId: number;
   courseTitle: string;
   courseSlug: string;
-  totalSeats: number;
-  claimedSeats: number;
+  totalLicenses: number;
+  claimedLicenses: number;
 }
 
-interface CouponRow {
+interface LicenseRow {
   id: number;
   code: string;
   courseId: number;
@@ -66,7 +66,7 @@ interface CouponRow {
 export function meta() {
   return [
     { title: "Team — Cadence" },
-    { name: "description", content: "Manage your team's course seats" },
+    { name: "description", content: "Manage your team's course licenses" },
   ];
 }
 
@@ -80,12 +80,12 @@ export async function loader({ request }: Route.LoaderArgs) {
   const team = getTeamForAdmin(currentUserId);
 
   if (!team) {
-    throw data("You don't have a team. Purchase team seats to create one.", {
+    throw data("You don't have a team. Purchase team licenses to create one.", {
       status: 403,
     });
   }
 
-  const allCoupons = getCouponsForTeam(team.id);
+  const allLicenses = getLicensesForTeam(team.id);
 
   // Build per-course stats
   const courseMap = new Map<
@@ -99,20 +99,20 @@ export async function loader({ request }: Route.LoaderArgs) {
     }
   >();
 
-  for (const coupon of allCoupons) {
-    if (!courseMap.has(coupon.courseId)) {
-      const course = getCourseById(coupon.courseId);
-      courseMap.set(coupon.courseId, {
-        courseId: coupon.courseId,
+  for (const license of allLicenses) {
+    if (!courseMap.has(license.courseId)) {
+      const course = getCourseById(license.courseId);
+      courseMap.set(license.courseId, {
+        courseId: license.courseId,
         courseTitle: course?.title ?? "Unknown Course",
         courseSlug: course?.slug ?? "",
         total: 0,
         claimed: 0,
       });
     }
-    const entry = courseMap.get(coupon.courseId)!;
+    const entry = courseMap.get(license.courseId)!;
     entry.total++;
-    if (coupon.redeemedByUserId !== null) {
+    if (license.redeemedByUserId !== null) {
       entry.claimed++;
     }
   }
@@ -122,30 +122,30 @@ export async function loader({ request }: Route.LoaderArgs) {
       courseId: e.courseId,
       courseTitle: e.courseTitle,
       courseSlug: e.courseSlug,
-      totalSeats: e.total,
-      claimedSeats: e.claimed,
+      totalLicenses: e.total,
+      claimedLicenses: e.claimed,
     })
   );
 
-  // Build coupon rows with redeemer email
-  const couponRows: CouponRow[] = allCoupons.map((coupon) => {
+  // Build license rows with redeemer email
+  const licenseRows: LicenseRow[] = allLicenses.map((license) => {
     let redeemedByEmail: string | null = null;
-    if (coupon.redeemedByUserId !== null) {
-      const user = getUserById(coupon.redeemedByUserId);
+    if (license.redeemedByUserId !== null) {
+      const user = getUserById(license.redeemedByUserId);
       redeemedByEmail = user?.email ?? null;
     }
-    const course = getCourseById(coupon.courseId);
+    const course = getCourseById(license.courseId);
     return {
-      id: coupon.id,
-      code: coupon.code,
-      courseId: coupon.courseId,
+      id: license.id,
+      code: license.code,
+      courseId: license.courseId,
       courseTitle: course?.title ?? "Unknown Course",
       redeemedByEmail,
-      createdAt: coupon.createdAt,
+      createdAt: license.createdAt,
     };
   });
 
-  return { courseStats, couponRows };
+  return { courseStats, licenseRows };
 }
 
 function CopyButton({ code }: { code: string }) {
@@ -181,13 +181,13 @@ function CopyButton({ code }: { code: string }) {
 }
 
 export default function Team({ loaderData }: Route.ComponentProps) {
-  const { courseStats, couponRows } = loaderData;
+  const { courseStats, licenseRows } = loaderData;
   const [courseFilter, setCourseFilter] = useState<number | "all">("all");
 
-  const filteredCoupons =
+  const filteredLicenses =
     courseFilter === "all"
-      ? couponRows
-      : couponRows.filter((c) => c.courseId === courseFilter);
+      ? licenseRows
+      : licenseRows.filter((c) => c.courseId === courseFilter);
 
   return (
     <div className="mx-auto max-w-7xl p-6 lg:p-8">
@@ -202,7 +202,7 @@ export default function Team({ loaderData }: Route.ComponentProps) {
       <div className="mb-8">
         <h1 className="text-3xl font-bold">Team Management</h1>
         <p className="mt-1 text-muted-foreground">
-          Manage your team&apos;s course seats and coupon codes
+          Manage your team&apos;s course licenses
         </p>
       </div>
 
@@ -221,19 +221,19 @@ export default function Team({ loaderData }: Route.ComponentProps) {
                 <div className="flex items-center justify-between">
                   <div>
                     <p className="text-2xl font-bold">
-                      {stat.claimedSeats}
+                      {stat.claimedLicenses}
                       <span className="text-base font-normal text-muted-foreground">
                         {" "}
-                        / {stat.totalSeats}
+                        / {stat.totalLicenses}
                       </span>
                     </p>
                     <p className="text-xs text-muted-foreground">
-                      seats claimed
+                      licenses claimed
                     </p>
                   </div>
                   <Link to={`/courses/${stat.courseSlug}/purchase?mode=team`}>
                     <Button variant="outline" size="sm">
-                      Buy more seats
+                      Buy more licenses
                     </Button>
                   </Link>
                 </div>
@@ -243,10 +243,10 @@ export default function Team({ loaderData }: Route.ComponentProps) {
         </div>
       )}
 
-      {/* Coupon list */}
+      {/* License list */}
       <div>
         <div className="mb-4 flex items-center justify-between">
-          <h2 className="text-lg font-semibold">Coupons</h2>
+          <h2 className="text-lg font-semibold">Licenses</h2>
           {courseStats.length > 1 && (
             <select
               value={courseFilter}
@@ -267,8 +267,8 @@ export default function Team({ loaderData }: Route.ComponentProps) {
           )}
         </div>
 
-        {filteredCoupons.length === 0 ? (
-          <p className="text-sm text-muted-foreground">No coupons yet.</p>
+        {filteredLicenses.length === 0 ? (
+          <p className="text-sm text-muted-foreground">No licenses yet.</p>
         ) : (
           <div className="overflow-x-auto rounded-md border">
             <table className="w-full text-sm">
@@ -281,20 +281,20 @@ export default function Team({ loaderData }: Route.ComponentProps) {
                 </tr>
               </thead>
               <tbody>
-                {filteredCoupons.map((coupon) => (
-                  <tr key={coupon.id} className="border-b last:border-0">
+                {filteredLicenses.map((license) => (
+                  <tr key={license.id} className="border-b last:border-0">
                     <td className="px-4 py-3">
                       <code className="rounded bg-muted px-2 py-0.5 text-xs">
-                        {coupon.code}
+                        {license.code}
                       </code>
                     </td>
                     <td className="px-4 py-3 text-muted-foreground">
-                      {coupon.courseTitle}
+                      {license.courseTitle}
                     </td>
                     <td className="px-4 py-3">
-                      {coupon.redeemedByEmail ? (
+                      {license.redeemedByEmail ? (
                         <span className="text-muted-foreground">
-                          Claimed by {coupon.redeemedByEmail}
+                          Claimed by {license.redeemedByEmail}
                         </span>
                       ) : (
                         <span className="inline-flex items-center rounded-full bg-green-100 px-2 py-0.5 text-xs font-medium text-green-700 dark:bg-green-900/30 dark:text-green-400">
@@ -303,8 +303,8 @@ export default function Team({ loaderData }: Route.ComponentProps) {
                       )}
                     </td>
                     <td className="px-4 py-3">
-                      {!coupon.redeemedByEmail && (
-                        <CopyButton code={coupon.code} />
+                      {!license.redeemedByEmail && (
+                        <CopyButton code={license.code} />
                       )}
                     </td>
                   </tr>
