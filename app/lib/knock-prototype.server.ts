@@ -89,6 +89,23 @@ export async function ensureDefaultPreferences(cadenceUserId: number) {
   });
 }
 
+export function getServerPreferences(cadenceUserId: number) {
+  return knock.users.getPreferences(knockUserId(cadenceUserId), DEFAULT_PREFERENCE_SET);
+}
+
+export function setEnrollmentFeedPreference(cadenceUserId: number, on: boolean) {
+  return knock.users.setPreferences(knockUserId(cadenceUserId), DEFAULT_PREFERENCE_SET, {
+    __persistence_strategy__: "merge",
+    categories: { [CATEGORY.enrollments]: { channel_types: { [IN_APP_FEED]: on } } },
+  });
+}
+
+// Wipes the user's preference set entirely, i.e. back to Knock's "everything on".
+// The next visit to the prototype page re-applies the opt-out default.
+export function resetPreferences(cadenceUserId: number) {
+  return knock.users.unsetPreferences(knockUserId(cadenceUserId), DEFAULT_PREFERENCE_SET);
+}
+
 export async function notifyDiscussionReply(args: {
   questionAuthorId: number;
   replierId: number;
