@@ -11,6 +11,7 @@ import {
 } from "~/components/comment-thread";
 import { MIN_COMMENT_LENGTH, MAX_COMMENT_LENGTH } from "~/lib/comments";
 import { db } from "~/db";
+import { notifyDiscussionReply } from "~/lib/knock-prototype.server";
 import {
   categories,
   comments,
@@ -900,12 +901,30 @@ export async function action({ params, request }: Route.ActionArgs) {
         if (!parsed.success) {
           return { ok: false, error: "Enter a comment before posting." };
         }
-        createComment(
+        const created = createComment(
           currentUserId,
           lessonId,
           parsed.data.parentId ?? null,
           parsed.data.body
         );
+        // PROTOTYPE (knock spike, #25): fire Discussion Reply → question author.
+        if (created.parentId !== null) {
+          const question = getCommentById(created.parentId);
+          const replier = db.select().from(users).where(eq(users.id, currentUserId)).get();
+          const lesson = db.select().from(lessons).where(eq(lessons.id, lessonId)).get();
+          if (question && replier && lesson) {
+            await notifyDiscussionReply({
+              questionAuthorId: question.userId,
+              replierId: currentUserId,
+              replierName: replier.name,
+              lessonTitle: lesson.title,
+              url: `/courses/${slug}/lessons/${lessonId}#comment-${created.id}`,
+              replyId: created.id,
+            })
+              .then((r) => console.log("[knock-prototype] discussion-reply", r))
+              .catch((e) => console.error("[knock-prototype] trigger failed", e));
+          }
+        }
         return { ok: true };
       }
 
