@@ -3,8 +3,8 @@
 //
 // Reads Knock keys straight from the gitignored .env.my so the spike doesn't
 // touch .env. Mapping (see the ticket's resolution comment):
-//   key2 = in-app feed channel id, key3 = secret key, key6 = public key,
-//   signing = base-64 PEM signing key.
+//   key2 = in-app feed channel id; dev_secret / dev_public / dev_signing =
+//   the Knock *Development* environment keys (key3/key6/signing are Production).
 import { readFileSync } from "node:fs";
 import Knock from "@knocklabs/node";
 import { signUserToken } from "@knocklabs/node/lib/tokenSigner";
@@ -15,6 +15,7 @@ function loadKeys() {
   const pairs = readFileSync(ENV_FILE, "utf8")
     .trim()
     .split("\n")
+    .filter((line) => line.includes("="))
     .map((line) => {
       const eq = line.indexOf("=");
       return [
@@ -28,9 +29,9 @@ function loadKeys() {
   const kv = Object.fromEntries(pairs);
   return {
     feedChannelId: kv.key2 as string,
-    secretKey: kv.key3 as string,
-    publicKey: kv.key6 as string,
-    signingKey: kv.signing as string,
+    secretKey: kv.dev_secret as string,
+    publicKey: kv.dev_public as string,
+    signingKey: kv.dev_signing as string,
   };
 }
 
