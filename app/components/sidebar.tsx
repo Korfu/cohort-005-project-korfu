@@ -41,6 +41,9 @@ interface SidebarProps {
   currentUser: CurrentUser | null;
   recentCourses?: RecentCourse[];
   isTeamAdmin?: boolean;
+  // PROTOTYPE (notification feed, #23) — never merge
+  feedHeaderSlot?: React.ReactNode;
+  feedNavSlot?: React.ReactNode;
 }
 
 interface NavItem {
@@ -117,6 +120,8 @@ export function Sidebar({
   currentUser,
   recentCourses = [],
   isTeamAdmin = false,
+  feedHeaderSlot,
+  feedNavSlot,
 }: SidebarProps) {
   const currentUserRole = currentUser?.role ?? null;
   const [isDark, setIsDark] = useState(false);
@@ -140,9 +145,11 @@ export function Sidebar({
         <NavLink to="/" className="text-lg font-bold tracking-tight">
           Cadence
         </NavLink>
+        {feedHeaderSlot}
       </div>
 
       <nav className="flex-1 space-y-1 p-3">
+        {feedNavSlot}
         {navItems
           .filter((item) => isVisible(item, currentUserRole))
           .map((item) => (

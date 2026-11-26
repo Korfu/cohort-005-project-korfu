@@ -49,6 +49,8 @@ export default [
     route("redeem/:code", "routes/redeem.$code.tsx"),
     // PROTOTYPE (knock spike, #25) — never merge
     route("prototype/knock", "routes/prototype.knock.tsx"),
+    // PROTOTYPE (notification feed, #23) — never merge
+    route("notifications", "routes/notifications.prototype.tsx"),
   ]),
   route("signup", "routes/signup.tsx"),
   route("login", "routes/login.tsx"),
@@ -56,4 +58,6 @@ export default [
   route("api/logout", "routes/api.logout.ts"),
   route("api/video-tracking", "routes/api.video-tracking.ts"),
   route("api/set-dev-country", "routes/api.set-dev-country.ts"),
+  // PROTOTYPE (notification feed, #23) — never merge
+  route("api/prototype-feed-seed", "routes/api.prototype-feed-seed.ts"),
 ] satisfies RouteConfig;

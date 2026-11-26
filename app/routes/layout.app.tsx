@@ -3,6 +3,17 @@ import type { Route } from "./+types/layout.app";
 import { Sidebar } from "~/components/sidebar";
 import { DevUI } from "~/components/dev-ui";
 import { Toaster } from "sonner";
+// PROTOTYPE (notification feed, #23) — never merge
+import { knockKeys, knockUserId, signFeedToken } from "~/lib/knock-prototype.server";
+import { FeedProvider, FeedSource } from "~/lib/notification-feed-prototype";
+import {
+  FeedVariant,
+  VARIANT_NAMES,
+  VariantABell,
+  VariantBDrawer,
+  VariantCNavLink,
+} from "~/components/notification-feed-prototype";
+import { PrototypeSwitcher, usePrototypeParam } from "~/components/prototype-switcher";
 import { getCurrentUserId, getDevCountry } from "~/lib/session";
 import { getCountryTierInfo, COUNTRIES } from "~/lib/ppp";
 import { eq, and, or, sql, desc } from "drizzle-orm";
@@ -213,6 +224,14 @@ export async function loader({ request }: Route.LoaderArgs) {
     countryTierInfo,
     countries: COUNTRIES,
     isTeamAdmin: currentUserId ? isTeamAdmin(currentUserId) : false,
+    knockSession: currentUserId
+      ? {
+          knockUserId: knockUserId(currentUserId),
+          token: await signFeedToken(currentUserId),
+          publicKey: knockKeys.publicKey,
+          feedChannelId: knockKeys.feedChannelId,
+        }
+      : null,
   };
 }
 
@@ -225,14 +244,25 @@ export default function AppLayout({ loaderData }: Route.ComponentProps) {
     countryTierInfo,
     countries,
     isTeamAdmin: userIsTeamAdmin,
+    knockSession,
   } = loaderData;
 
+  const variants = Object.values(FeedVariant);
+  const sources = Object.values(FeedSource);
+  const [variant, setVariant] = usePrototypeParam("variant", variants, FeedVariant.A);
+  const [source, setSource] = usePrototypeParam("source", sources, FeedSource.Knock);
+
   return (
+    <FeedProvider key={knockSession?.knockUserId} session={knockSession} source={source}>
     <div className="flex h-screen overflow-hidden">
       <Sidebar
         currentUser={currentUser}
         recentCourses={recentCourses}
         isTeamAdmin={userIsTeamAdmin}
+        feedHeaderSlot={currentUser && variant === FeedVariant.A ? <VariantABell /> : null}
+        feedNavSlot={
+          !currentUser ? null : variant === FeedVariant.B ? <VariantBDrawer /> : variant === FeedVariant.C ? <VariantCNavLink /> : null
+        }
       />
       <main className="flex-1 overflow-y-auto">
         <Outlet />
@@ -245,6 +275,17 @@ export default function AppLayout({ loaderData }: Route.ComponentProps) {
         countries={countries}
       />
       <Toaster position="bottom-right" richColors closeButton />
+      <PrototypeSwitcher
+        variants={variants}
+        names={VARIANT_NAMES}
+        current={variant}
+        onVariant={setVariant}
+        sources={sources}
+        source={source}
+        onSource={setSource}
+        seedAction="/api/prototype-feed-seed"
+      />
     </div>
+    </FeedProvider>
   );
 }
